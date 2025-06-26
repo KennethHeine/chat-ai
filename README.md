@@ -1,69 +1,60 @@
-# React + TypeScript + Vite
+# Chat AI
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A minimal yet modern frontend chat application built with React, TypeScript, and Tailwind CSS that integrates with the OpenAI Chat Completions API.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- 🚀 **Modern Tech Stack**: React + Vite + TypeScript + Tailwind CSS
+- 💬 **Real-time Chat**: Stream responses from OpenAI as they arrive
+- 📝 **Markdown Support**: Rich text rendering for assistant messages
+- 💾 **Persistent History**: Conversations saved to localStorage
+- 🧹 **Clear Chat**: Easily wipe conversation history
+- 🔑 **Secure API Key**: Environment-based or user-provided API key
 
-## Expanding the ESLint configuration
+## Quick Start
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+1. **Clone and install dependencies**:
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+   ```bash
+   git clone <your-repo-url>
+   cd chat-ai
+   npm install
+   ```
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+2. **Set up your OpenAI API key**:
+   - Copy `.env.example` to `.env`
+   - Add your OpenAI API key: `VITE_OPENAI_API_KEY=your_key_here`
+   - Or enter it in the app when prompted
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+3. **Start the development server**:
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+   ```bash
+   npm run dev
+   ```
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+4. **Build for production**:
+   ```bash
+   npm run build
+   ```
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm run lint` - Run ESLint
+- `npm run format` - Format code with Prettier
+
+## Technology Stack
+
+- **Frontend**: React 19 + TypeScript
+- **Build Tool**: Vite
+- **Styling**: Tailwind CSS with typography plugin
+- **Icons**: Lucide React
+- **Markdown**: Marked
+- **Code Quality**: ESLint + Prettier + Husky pre-commit hooks
+- **CI/CD**: GitHub Actions
+
+## API Integration
+
+This app integrates with the OpenAI Chat Completions API using server-sent events for real-time streaming responses. Make sure you have a valid OpenAI API key with access to the chat completions endpoint.
