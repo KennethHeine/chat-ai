@@ -60,6 +60,17 @@ function appendMessage(role, text) {
 
 // --------------- Chat ---------------
 
+async function callCopilot(messages, model) {
+  return fetch(`${copilotBaseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${copilotToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ model, messages, max_tokens: 4096, stream: false }),
+  });
+}
+
 chatForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const text = chatInput.value.trim();
@@ -70,43 +81,14 @@ chatForm.addEventListener("submit", async (e) => {
   history.push({ role: "user", content: text });
 
   try {
-    // Ensure we have a valid Copilot token
     if (!copilotToken) await fetchCopilotToken();
 
     const model = modelSelect.value;
-    const res = await fetch(`${copilotBaseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${copilotToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        messages: history,
-        max_tokens: 4096,
-        stream: false,
-      }),
-    });
+    let res = await callCopilot(history, model);
 
     if (res.status === 401 || res.status === 403) {
-      // Token may have expired — refresh and retry once
       await fetchCopilotToken();
-      const retry = await fetch(`${copilotBaseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${copilotToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          messages: history,
-          max_tokens: 4096,
-          stream: false,
-        }),
-      });
-      const data = await retry.json();
-      handleChatResponse(data);
-      return;
+      res = await callCopilot(history, model);
     }
 
     const data = await res.json();
