@@ -25,12 +25,24 @@ app.use(
 
 app.use(express.static(path.join(__dirname, "..", "public")));
 
+// CSRF protection: verify Origin header on state-changing requests
+app.use((req, res, next) => {
+  if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") {
+    return next();
+  }
+  const origin = req.get("origin");
+  if (origin) {
+    const host = req.get("host");
+    const allowed = `${req.protocol}://${host}`;
+    if (origin !== allowed) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+  }
+  next();
+});
+
 app.use("/auth", authRouter);
 app.use("/api", chatRouter);
-
-app.get("/", (_req, res) => {
-  res.sendFile(path.join(__dirname, "..", "public", "index.html"));
-});
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
