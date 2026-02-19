@@ -22,33 +22,40 @@ router.get("/github/callback", async (req, res) => {
     return res.status(400).json({ error: "Missing authorization code" });
   }
 
-  const response = await fetch(GITHUB_TOKEN_URL, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      client_id: process.env.GITHUB_CLIENT_ID,
-      client_secret: process.env.GITHUB_CLIENT_SECRET,
-      code,
-    }),
-  });
+  try {
+    const response = await fetch(GITHUB_TOKEN_URL, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        client_id: process.env.GITHUB_CLIENT_ID,
+        client_secret: process.env.GITHUB_CLIENT_SECRET,
+        code,
+      }),
+    });
 
-  const data = await response.json();
-  if (data.error) {
-    return res.status(400).json({ error: data.error_description || data.error });
+    const data = await response.json();
+    if (data.error) {
+      return res.status(400).json({ error: data.error_description || data.error });
+    }
+
+    req.session.token = data.access_token;
+
+    const userRes = await fetch("https://api.github.com/user", {
+      headers: { Authorization: `Bearer ${data.access_token}` },
+    });
+    if (!userRes.ok) {
+      return res.status(502).json({ error: "Failed to fetch GitHub user info" });
+    }
+    const user = await userRes.json();
+    req.session.user = { login: user.login, avatar: user.avatar_url };
+
+    res.redirect("/");
+  } catch (err) {
+    res.status(502).json({ error: "GitHub authentication failed" });
   }
-
-  req.session.token = data.access_token;
-
-  const userRes = await fetch("https://api.github.com/user", {
-    headers: { Authorization: `Bearer ${data.access_token}` },
-  });
-  const user = await userRes.json();
-  req.session.user = { login: user.login, avatar: user.avatar_url };
-
-  res.redirect("/");
 });
 
 router.get("/me", (req, res) => {

@@ -21,27 +21,31 @@ router.post("/chat", async (req, res) => {
     stream: false,
   };
 
-  const response = await fetch(COPILOT_CHAT_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  try {
+    const response = await fetch(COPILOT_CHAT_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
 
-  if (!response.ok) {
-    const text = await response.text();
-    return res
-      .status(response.status)
-      .json({ error: `Copilot API error: ${text}` });
+    if (!response.ok) {
+      const text = await response.text();
+      return res
+        .status(response.status)
+        .json({ error: `Copilot API error: ${text}` });
+    }
+
+    const data = await response.json();
+    const reply =
+      data.choices?.[0]?.message?.content ?? "No response from model.";
+    res.json({ reply });
+  } catch (err) {
+    res.status(502).json({ error: "Failed to reach the Copilot API" });
   }
-
-  const data = await response.json();
-  const reply =
-    data.choices?.[0]?.message?.content ?? "No response from model.";
-  res.json({ reply });
 });
 
 module.exports = router;

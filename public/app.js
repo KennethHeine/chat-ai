@@ -10,11 +10,15 @@ const chatInput = document.getElementById("chat-input");
 const history = []; // conversation messages sent to the API
 
 async function checkAuth() {
-  const res = await fetch("/auth/me");
-  const data = await res.json();
-  if (data.authenticated) {
-    showChat(data.user);
-  } else {
+  try {
+    const res = await fetch("/auth/me");
+    const data = await res.json();
+    if (data.authenticated) {
+      showChat(data.user);
+    } else {
+      showLogin();
+    }
+  } catch {
     showLogin();
   }
 }
@@ -48,18 +52,22 @@ chatForm.addEventListener("submit", async (e) => {
   appendMessage("user", text);
   history.push({ role: "user", content: text });
 
-  const res = await fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages: history }),
-  });
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: history }),
+    });
 
-  const data = await res.json();
-  if (data.error) {
-    appendMessage("assistant", `Error: ${data.error}`);
-  } else {
-    appendMessage("assistant", data.reply);
-    history.push({ role: "assistant", content: data.reply });
+    const data = await res.json();
+    if (data.error) {
+      appendMessage("assistant", `Error: ${data.error}`);
+    } else {
+      appendMessage("assistant", data.reply);
+      history.push({ role: "assistant", content: data.reply });
+    }
+  } catch {
+    appendMessage("assistant", "Error: Could not reach the server.");
   }
 });
 
