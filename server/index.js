@@ -2,7 +2,6 @@ const express = require("express");
 const session = require("express-session");
 const path = require("path");
 const authRouter = require("./auth");
-const chatRouter = require("./chat");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -42,7 +41,6 @@ app.use((req, res, next) => {
 });
 
 app.use("/auth", authRouter);
-app.use("/api", chatRouter);
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);

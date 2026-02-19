@@ -6,8 +6,13 @@ const logoutBtn = document.getElementById("logout-btn");
 const messagesEl = document.getElementById("messages");
 const chatForm = document.getElementById("chat-form");
 const chatInput = document.getElementById("chat-input");
+const modelSelect = document.getElementById("model-select");
 
 const history = []; // conversation messages sent to the API
+let copilotToken = null;
+let copilotBaseUrl = null;
+
+// --------------- Auth helpers ---------------
 
 async function checkAuth() {
   try {
@@ -22,6 +27,16 @@ async function checkAuth() {
     showLogin();
   }
 }
+
+async function fetchCopilotToken() {
+  const res = await fetch("/auth/copilot-token");
+  if (!res.ok) throw new Error("Failed to get Copilot token");
+  const data = await res.json();
+  copilotToken = data.token;
+  copilotBaseUrl = data.baseUrl;
+}
+
+// --------------- UI helpers ---------------
 
 function showLogin() {
   loginScreen.classList.remove("hidden");
@@ -43,6 +58,8 @@ function appendMessage(role, text) {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+// --------------- Chat ---------------
+
 chatForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const text = chatInput.value.trim();
@@ -53,28 +70,70 @@ chatForm.addEventListener("submit", async (e) => {
   history.push({ role: "user", content: text });
 
   try {
-    const res = await fetch("/api/chat", {
+    // Ensure we have a valid Copilot token
+    if (!copilotToken) await fetchCopilotToken();
+
+    const model = modelSelect.value;
+    const res = await fetch(`${copilotBaseUrl}/chat/completions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: history }),
+      headers: {
+        Authorization: `Bearer ${copilotToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages: history,
+        max_tokens: 4096,
+        stream: false,
+      }),
     });
 
-    const data = await res.json();
-    if (data.error) {
-      appendMessage("assistant", `Error: ${data.error}`);
-    } else {
-      appendMessage("assistant", data.reply);
-      history.push({ role: "assistant", content: data.reply });
+    if (res.status === 401 || res.status === 403) {
+      // Token may have expired — refresh and retry once
+      await fetchCopilotToken();
+      const retry = await fetch(`${copilotBaseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${copilotToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: history,
+          max_tokens: 4096,
+          stream: false,
+        }),
+      });
+      const data = await retry.json();
+      handleChatResponse(data);
+      return;
     }
+
+    const data = await res.json();
+    handleChatResponse(data);
   } catch {
-    appendMessage("assistant", "Error: Could not reach the server.");
+    appendMessage("assistant", "Error: Could not reach the Copilot API.");
   }
 });
+
+function handleChatResponse(data) {
+  if (data.error) {
+    appendMessage("assistant", `Error: ${data.error.message || JSON.stringify(data.error)}`);
+  } else {
+    const reply = data.choices?.[0]?.message?.content ?? "No response from model.";
+    appendMessage("assistant", reply);
+    history.push({ role: "assistant", content: reply });
+  }
+}
+
+// --------------- Logout ---------------
 
 logoutBtn.addEventListener("click", async () => {
   await fetch("/auth/logout", { method: "POST" });
   history.length = 0;
   messagesEl.innerHTML = "";
+  copilotToken = null;
+  copilotBaseUrl = null;
   showLogin();
 });
 

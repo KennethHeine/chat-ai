@@ -157,3 +157,18 @@ main#messages {
 #chat-input:focus {
   border-color: #58a6ff;
 }
+
+#model-select {
+  padding: 0.6rem 0.5rem;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  background: #0d1117;
+  color: #c9d1d9;
+  font-size: 0.85rem;
+  outline: none;
+  cursor: pointer;
+}
+
+#model-select:focus {
+  border-color: #58a6ff;
+}
