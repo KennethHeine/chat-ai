@@ -1,0 +1,15 @@
+{
+  "name": "chat-ai",
+  "version": "1.0.0",
+  "description": "A simple chat app with GitHub OAuth and the GitHub Copilot OpenAI-compatible API",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "express": "^5.2.1",
+    "express-session": "^1.19.0"
+  }
+}
