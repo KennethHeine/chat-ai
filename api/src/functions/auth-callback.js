@@ -1,5 +1,6 @@
 const { app } = require("@azure/functions");
 const { createSession } = require("../utils/session");
+const { checkRateLimit, rateLimitResponse } = require("../utils/rate-limit");
 
 const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
 
@@ -8,6 +9,9 @@ app.http("authCallback", {
   authLevel: "anonymous",
   route: "auth/github/callback",
   handler: async (request, context) => {
+    const rl = checkRateLimit(request, { route: "callback", maxRequests: 10 });
+    if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
+
     const code = request.query.get("code");
     if (!code) {
       return { status: 400, jsonBody: { error: "Missing authorization code" } };

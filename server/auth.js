@@ -107,8 +107,8 @@ router.get("/copilot-token", async (req, res) => {
     });
 
     if (!response.ok) {
-      const text = await response.text();
-      return res.status(response.status).json({ error: `Token exchange failed: ${text}` });
+      console.warn("Copilot token exchange returned HTTP %d", response.status);
+      return res.status(response.status).json({ error: "Copilot token exchange failed" });
     }
 
     const data = await response.json();
