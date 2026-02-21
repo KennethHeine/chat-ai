@@ -102,6 +102,7 @@ resource kvRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' =
 // --- App Settings via Key Vault secret references ---
 module swaAppSettings './modules/swa-appsettings.bicep' = {
   name: 'swa-appsettings'
+  dependsOn: [kvRoleAssignment]
   params: {
     staticWebAppName: staticWebApp.name
     storageAccountName: storageAccount.name

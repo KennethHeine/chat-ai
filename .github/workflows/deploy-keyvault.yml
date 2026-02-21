@@ -36,7 +36,18 @@ jobs:
             deployerPrincipalId=${{ steps.identity.outputs.objectId }}
 
       - name: Wait for RBAC Propagation
-        run: sleep 30
+        run: |
+          echo "Waiting for Key Vault RBAC to propagate..."
+          for i in $(seq 1 12); do
+            if az keyvault secret list \
+              --vault-name "${{ steps.keyvault.outputs.keyVaultName }}" \
+              --query "length(@)" -o tsv 2>/dev/null; then
+              echo "Key Vault access confirmed."
+              break
+            fi
+            echo "Attempt $i/12 — retrying in 10s..."
+            sleep 10
+          done
 
       - name: Store GitHub OAuth Secrets
         run: |
