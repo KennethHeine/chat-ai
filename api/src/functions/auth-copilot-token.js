@@ -52,7 +52,7 @@ app.http("authCopilotToken", {
       const data = await response.json();
       const baseUrl = parseBaseUrl(data.token);
       let expiresAt = data.expires_at;
-      if (expiresAt < 10_000_000_000) expiresAt *= 1000; // convert s → ms
+      if (expiresAt < 10_000_000_000) expiresAt *= 1000; // seconds → ms
 
       session.copilotCache = { token: data.token, baseUrl, expiresAt };
       const cookie = setSession(session);

@@ -4,12 +4,15 @@ param location string = 'westeurope'
 @description('Name of the Static Web App')
 param staticWebAppName string = 'swa-chat-ai'
 
+@description('Environment tag for resource management')
+param environment string = 'production'
+
 resource staticWebApp 'Microsoft.Web/staticSites@2023-12-01' = {
   name: staticWebAppName
   location: location
   tags: {
     project: 'chat-ai'
-    environment: 'production'
+    environment: environment
   }
   sku: {
     name: 'Free'
