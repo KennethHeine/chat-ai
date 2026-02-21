@@ -16,6 +16,10 @@ The app uses a two-stage authentication flow:
    for a short-lived Copilot API token, which the frontend uses to call the
    Copilot chat completions API directly.
 
+All sensitive tokens (GitHub access token, Copilot token) are stored
+**server-side** in Azure Table Storage. The browser only receives an opaque
+session ID cookie — no token material is ever sent to the client.
+
 ```
 ┌────────────┐       ┌────────────┐       ┌──────────────┐       ┌──────────────────┐
 │   Browser  │       │   Backend  │       │  GitHub OAuth │       │   Copilot API    │
@@ -34,18 +38,24 @@ The app uses a two-stage authentication flow:
       │                     │────────────────────>│                       │
       │                     │  7. Access token    │                       │
       │                     │<────────────────────│                       │
-      │  8. Set cookie      │                     │                       │
+      │                     │  8. Store session   │                       │
+      │                     │  ──> Table Storage  │                       │
+      │  9. Set session cookie (opaque ID only)   │                       │
       │<────────────────────│                     │                       │
-      │  9. GET /copilot-token                    │                       │
-      │────────────────────>│  10. Exchange token │                       │
+      │  10. GET /copilot-token                   │                       │
+      │────────────────────>│  11. Lookup session │                       │
+      │                     │  <── Table Storage  │                       │
+      │                     │  12. Exchange token │                       │
       │                     │─────────────────────────────────────────────>│ (GitHub API)
-      │                     │  11. Copilot token  │                       │
+      │                     │  13. Copilot token  │                       │
       │                     │<─────────────────────────────────────────────│
-      │  12. Copilot token  │                     │                       │
+      │                     │  14. Cache in Table │                       │
+      │                     │  ──> Table Storage  │                       │
+      │  15. Copilot token  │                     │                       │
       │<────────────────────│                     │                       │
-      │  13. POST /chat/completions               │                       │
+      │  16. POST /chat/completions               │                       │
       │───────────────────────────────────────────────────────────────────>│
-      │  14. Chat response  │                     │                       │
+      │  17. Chat response  │                     │                       │
       │<──────────────────────────────────────────────────────────────────│
 ```
 
@@ -126,27 +136,40 @@ Authorization: Bearer <ACCESS_TOKEN>
 ```
 
 The response includes `login` (username) and `avatar_url`, which are stored in
-the session.
+the server-side session.
 
 > **Reference:**
 > [Get the authenticated user](https://docs.github.com/en/rest/users/users#get-the-authenticated-user)
 
-### 1.5 — Create session
+### 1.5 — Create server-side session
 
-The backend creates an encrypted session cookie containing:
+The backend creates a session record in **Azure Table Storage** and sets an
+opaque session ID cookie on the response. No token material leaves the server.
 
-- The GitHub access token (never exposed to the browser)
-- The user profile (`login`, `avatar_url`)
+#### Session entity (Table Storage)
 
-The cookie is encrypted with AES-256-GCM using a key derived from the
-`SESSION_SECRET` environment variable. Cookie attributes:
+| Field              | Value                                               |
+| ------------------ | --------------------------------------------------- |
+| `PartitionKey`     | `"sess"`                                            |
+| `RowKey`           | Cryptographically random ID (256-bit, base64url)    |
+| `githubToken`      | The GitHub access token                             |
+| `userLogin`        | GitHub username                                     |
+| `userAvatar`       | GitHub avatar URL                                   |
+| `copilotToken`     | _(empty until first exchange)_                      |
+| `copilotBaseUrl`   | _(empty until first exchange)_                      |
+| `copilotExpiresAt` | _(0 until first exchange)_                          |
+| `sessionExpiresAt` | `Date.now() + 86 400 000` (24 h)                    |
 
-| Attribute   | Value                                    |
-| ----------- | ---------------------------------------- |
-| `HttpOnly`  | Always set — prevents JavaScript access  |
-| `Secure`    | Set in production only — requires HTTPS  |
-| `SameSite`  | `Lax` — protects against CSRF            |
-| `Max-Age`   | 86 400 seconds (24 hours)                |
+#### Session cookie
+
+| Attribute   | Value                                                     |
+| ----------- | --------------------------------------------------------- |
+| Name        | `session`                                                 |
+| Value       | Opaque random ID (≥ 256-bit, base64url)                   |
+| `HttpOnly`  | Always set — prevents JavaScript access                   |
+| `Secure`    | Set in production only — requires HTTPS                   |
+| `SameSite`  | `Lax` — protects against CSRF                             |
+| `Max-Age`   | 86 400 seconds (24 hours, configurable via `SESSION_MAX_AGE`) |
 
 The user is then redirected to `/` (the chat UI).
 
@@ -165,10 +188,10 @@ When the user sends their first chat message, the frontend calls:
 GET /api/auth/copilot-token
 ```
 
-### 2.2 — Backend exchanges the token
+### 2.2 — Backend looks up the session and exchanges the token
 
-The backend reads the GitHub access token from the session cookie and calls
-GitHub's internal Copilot token endpoint:
+The backend reads the opaque session ID from the cookie, fetches the session
+entity from Table Storage, and calls GitHub's internal Copilot token endpoint:
 
 ```http
 GET https://api.github.com/copilot_internal/v2/token
@@ -198,10 +221,11 @@ proxy-ep=proxy.individual.githubcopilot.com
          → https://api.individual.githubcopilot.com
 ```
 
-### 2.4 — Cache the token
+### 2.4 — Cache the token server-side
 
-The Copilot token is cached in the session cookie and reused until it is within
-5 minutes of expiry. This avoids unnecessary API calls on every chat message.
+The Copilot token, base URL, and expiry are written back to the session entity
+in Table Storage. The token is reused until it is within 5 minutes of expiry,
+minimizing calls to GitHub.
 
 ### 2.5 — Return to frontend
 
@@ -248,8 +272,9 @@ The user clicks **Logout**, which sends:
 POST /api/auth/logout
 ```
 
-The backend clears the session cookie (sets `Max-Age=0`). The frontend clears
-its in-memory state and shows the login screen.
+The backend deletes the session entity from Table Storage and clears the session
+cookie (sets `Max-Age=0`). The frontend clears its in-memory state and shows the
+login screen.
 
 CSRF protection: the backend validates the `Origin` header on POST requests to
 ensure the request originates from the same site.
@@ -260,19 +285,23 @@ ensure the request originates from the same site.
 
 | Concern | Mitigation |
 | --- | --- |
-| GitHub token exposure | Stored server-side in encrypted cookie, never sent to browser |
-| Session cookie tampering | AES-256-GCM authenticated encryption |
+| GitHub token exposure | Stored server-side in Azure Table Storage; never sent to browser |
+| Session cookie content | Opaque random ID only — no token material in the cookie |
+| Table Storage access | Managed Identity + RBAC (Storage Table Data Contributor); no storage keys |
+| Secret management | OAuth secrets in Azure Key Vault; injected via Bicep `getSecret()` at deploy time |
 | CSRF | Origin header validation + `SameSite=Lax` cookies |
 | Session hijacking | `HttpOnly` cookies; `Secure` flag in production |
-| Copilot token lifetime | Short-lived; auto-refreshed; cached with expiration |
-| Secret management | `SESSION_SECRET` enforced in production; dev fallback warns |
+| Copilot token lifetime | Short-lived; auto-refreshed; cached server-side with 5-min margin |
+| Session expiry | Server-side TTL (24 h); expired sessions deleted on access |
 
 ---
 
-## Related GitHub Documentation
+## Related Documentation
 
 - [Creating an OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app)
 - [Authorizing OAuth Apps (Web Application Flow)](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#web-application-flow)
 - [Scopes for OAuth Apps](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps)
 - [Get the authenticated user](https://docs.github.com/en/rest/users/users#get-the-authenticated-user)
+- [Azure Table Storage](https://learn.microsoft.com/en-us/azure/storage/tables/table-storage-overview)
+- [Managed Identities for Azure resources](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/overview)
 - [Use GitHub Actions to connect to Azure (OIDC)](https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure?tabs=azure-portal%2Clinux#use-the-azure-login-action-with-openid-connect)

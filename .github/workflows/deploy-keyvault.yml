@@ -1,0 +1,67 @@
+name: Deploy Key Vault
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get Deployer Principal ID
+        id: identity
+        run: |
+          OBJECT_ID=$(az ad sp show --id "${{ secrets.AZURE_CLIENT_ID }}" --query id -o tsv)
+          echo "objectId=$OBJECT_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy Key Vault
+        uses: azure/arm-deploy@v2
+        id: keyvault
+        with:
+          resourceGroupName: rg-chat-ai
+          template: ./infra/keyvault.bicep
+          parameters: >-
+            deployerPrincipalId=${{ steps.identity.outputs.objectId }}
+
+      - name: Wait for RBAC Propagation
+        run: |
+          echo "Waiting for Key Vault RBAC to propagate..."
+          rbac_ready=0
+          for i in $(seq 1 12); do
+            if az keyvault secret list \
+              --vault-name "${{ steps.keyvault.outputs.keyVaultName }}" \
+              --query "length(@)" -o tsv >/dev/null 2>&1; then
+              echo "Key Vault access confirmed."
+              rbac_ready=1
+              break
+            fi
+            echo "Attempt $i/12 — retrying in 10s..."
+            sleep 10
+          done
+          if [ "$rbac_ready" -ne 1 ]; then
+            echo "ERROR: Timed out waiting for Key Vault RBAC to propagate after 12 attempts (2 minutes)." >&2
+            exit 1
+          fi
+
+      - name: Store GitHub OAuth Secrets
+        run: |
+          az keyvault secret set \
+            --vault-name "${{ steps.keyvault.outputs.keyVaultName }}" \
+            --name "GitHubClientId" \
+            --value "${{ secrets.OAUTH_CLIENT_ID }}"
+          az keyvault secret set \
+            --vault-name "${{ steps.keyvault.outputs.keyVaultName }}" \
+            --name "GitHubClientSecret" \
+            --value "${{ secrets.OAUTH_CLIENT_SECRET }}"

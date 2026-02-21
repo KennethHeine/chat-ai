@@ -1,35 +1,60 @@
-const { encrypt, decrypt } = require("./crypto");
+const crypto = require("crypto");
+const {
+  createSessionEntity,
+  getSessionEntity,
+  updateSessionEntity,
+  deleteSessionEntity,
+} = require("./session-store");
 
 const COOKIE_NAME = "session";
-const MAX_AGE = 86400; // 24 hours in seconds
+const MAX_AGE = parseInt(process.env.SESSION_MAX_AGE, 10) || 86400; // 24h default
 
 function isSecure() {
-  const nodeEnv = process.env.NODE_ENV;
-  return nodeEnv === "production";
+  return process.env.NODE_ENV === "production";
 }
 
 function cookieFlags() {
   return `HttpOnly;${isSecure() ? " Secure;" : ""} SameSite=Lax; Path=/`;
 }
 
-function setSession(data) {
-  const encrypted = encrypt(JSON.stringify(data));
-  return `${COOKIE_NAME}=${encrypted}; ${cookieFlags()}; Max-Age=${MAX_AGE}`;
+function generateSessionId() {
+  return crypto.randomBytes(32).toString("base64url"); // 256-bit
 }
 
-function getSession(request) {
+function getSessionId(request) {
   const cookies = request.headers.get("cookie") || "";
-  const match = cookies.match(new RegExp(`${COOKIE_NAME}=([^;]+)`));
-  if (!match) return null;
+  const match = cookies.match(new RegExp(`(?:^|;\\s*)${COOKIE_NAME}=([^;]+)`));
+  return match ? match[1] : null;
+}
+
+async function createSession(data) {
+  const sessionId = generateSessionId();
+  await createSessionEntity(sessionId, data);
+  return `${COOKIE_NAME}=${sessionId}; ${cookieFlags()}; Max-Age=${MAX_AGE}`;
+}
+
+async function getSession(request) {
+  const sessionId = getSessionId(request);
+  if (!sessionId) return null;
   try {
-    return JSON.parse(decrypt(match[1]));
+    return await getSessionEntity(sessionId);
   } catch {
     return null;
   }
 }
 
-function clearSession() {
+async function updateSession(request, updates) {
+  const sessionId = getSessionId(request);
+  if (!sessionId) return;
+  await updateSessionEntity(sessionId, updates);
+}
+
+async function destroySession(request) {
+  const sessionId = getSessionId(request);
+  if (sessionId) {
+    await deleteSessionEntity(sessionId);
+  }
   return `${COOKIE_NAME}=; ${cookieFlags()}; Max-Age=0`;
 }
 
-module.exports = { setSession, getSession, clearSession };
+module.exports = { createSession, getSession, updateSession, destroySession };

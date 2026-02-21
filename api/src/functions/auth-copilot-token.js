@@ -1,5 +1,5 @@
 const { app } = require("@azure/functions");
-const { getSession, setSession } = require("../utils/session");
+const { getSession, updateSession } = require("../utils/session");
 
 const COPILOT_TOKEN_URL = "https://api.github.com/copilot_internal/v2/token";
 const DEFAULT_COPILOT_BASE = "https://api.individual.githubcopilot.com";
@@ -22,7 +22,7 @@ app.http("authCopilotToken", {
   authLevel: "anonymous",
   route: "auth/copilot-token",
   handler: async (request, context) => {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session || !session.githubToken) {
       return { status: 401, jsonBody: { error: "Not authenticated" } };
     }
@@ -54,12 +54,11 @@ app.http("authCopilotToken", {
       let expiresAt = data.expires_at;
       if (expiresAt < 10_000_000_000) expiresAt *= 1000; // seconds → ms
 
-      session.copilotCache = { token: data.token, baseUrl, expiresAt };
-      const cookie = setSession(session);
+      const copilotCache = { token: data.token, baseUrl, expiresAt };
+      await updateSession(request, { copilotCache });
 
       return {
         jsonBody: { token: data.token, baseUrl },
-        headers: { "Set-Cookie": cookie },
       };
     } catch (err) {
       context.error("Copilot token exchange failed:", err);

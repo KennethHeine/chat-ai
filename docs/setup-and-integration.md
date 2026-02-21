@@ -24,15 +24,26 @@ handles authentication and token exchange.
             │                      │
   ┌─────────▼──────────┐   ┌──────▼─────────────────────┐
   │   Express Backend   │   │   Copilot API               │
-  │                     │   │   api.individual.            │
-  │  /auth/github       │   │     githubcopilot.com       │
+  │   (local dev) or    │   │   api.individual.            │
+  │   Azure Functions   │   │     githubcopilot.com       │
+  │                     │   │                             │
+  │  /auth/github       │   │  POST /chat/completions     │
   │  /auth/github/      │   │                             │
-  │    callback         │   │  POST /chat/completions     │
-  │  /auth/copilot-     │   │                             │
-  │    token            │   └─────────────────────────────┘
-  │  /auth/me           │
-  │  /auth/logout       │
-  └─────────────────────┘
+  │    callback         │   └─────────────────────────────┘
+  │  /auth/copilot-     │
+  │    token            │
+  │  /auth/me           │           ┌─────────────────────┐
+  │  /auth/logout       │           │  Azure Table Storage │
+  └──┬──────────────────┘           │  (sessions table)    │
+     │    session CRUD              │  Managed Identity    │
+     ├─────────────────────────────>│  + RBAC              │
+     │                              └─────────────────────┘
+     │    secrets (deploy-time)
+     │                              ┌─────────────────────┐
+     └─────────────────────────────>│  Azure Key Vault     │
+                                    │  (OAuth secrets)     │
+                                    │  Bicep getSecret()   │
+                                    └─────────────────────┘
 ```
 
 ### Data Flow
@@ -40,12 +51,15 @@ handles authentication and token exchange.
 1. User clicks **Sign in with GitHub** → browser redirects to GitHub OAuth
 2. User authorizes → GitHub redirects back with an authorization `code`
 3. Backend exchanges the `code` for a **GitHub access token** (kept server-side)
-4. Backend fetches user profile and stores it in the session
-5. Frontend calls `GET /auth/copilot-token` → backend exchanges the GitHub
-   access token for a short-lived **Copilot API token** and returns it
-6. Frontend calls `POST {baseUrl}/chat/completions` directly with the Copilot
+4. Backend fetches user profile and stores token + profile in **Azure Table
+   Storage** (or in-memory for local dev)
+5. Backend sets an **opaque session ID cookie** (no token material in cookie)
+6. Frontend calls `GET /auth/copilot-token` → backend looks up the session in
+   Table Storage, exchanges the GitHub access token for a short-lived **Copilot
+   API token**, caches it server-side, and returns it
+7. Frontend calls `POST {baseUrl}/chat/completions` directly with the Copilot
    token
-7. If the Copilot token expires, frontend fetches a fresh one from the backend
+8. If the Copilot token expires, frontend fetches a fresh one from the backend
 
 ---
 
@@ -153,8 +167,9 @@ The response includes:
 - `token` — a semicolon-delimited string containing a `proxy-ep` field
 - `expires_at` — Unix timestamp
 
-The backend caches this token in the session and refreshes it 5 minutes before
-expiry. The `proxy-ep` field is parsed to derive the API base URL:
+The backend caches this token in the server-side session (Table Storage) and
+refreshes it 5 minutes before expiry. The `proxy-ep` field is parsed to derive
+the API base URL:
 
 ```
 proxy-ep=proxy.individual.githubcopilot.com
@@ -190,29 +205,51 @@ requests a fresh token from the backend and retries.
 chat-ai/
 ├── .env.example           Environment variable template
 ├── package.json           Project metadata and scripts
+├── api/
+│   ├── package.json       Azure Functions dependencies
+│   └── src/
+│       ├── functions/     HTTP-triggered Azure Functions
+│       │   ├── auth-github.js
+│       │   ├── auth-callback.js
+│       │   ├── auth-me.js
+│       │   ├── auth-copilot-token.js
+│       │   └── auth-logout.js
+│       └── utils/
+│           ├── session.js          Opaque session ID cookie management
+│           └── session-store.js    Azure Table Storage session CRUD
 ├── docs/
-│   ├── copilot-api-spec.md    Full Copilot API specification
-│   └── setup-and-integration.md   This document
+│   ├── authentication-flow.md   Full auth + session architecture
+│   ├── copilot-api-spec.md      Copilot API specification
+│   ├── secrets.md               Required secrets reference
+│   └── setup-and-integration.md This document
+├── infra/
+│   ├── keyvault.bicep     Bicep: Key Vault + deployer RBAC
+│   ├── main.bicep         Bicep: SWA + Storage + KV refs + RBAC + app settings
+│   └── modules/
+│       └── swa-appsettings.bicep  SWA app settings (accepts @secure params)
 ├── public/
 │   ├── index.html         Login and chat UI
 │   ├── style.css          Dark-themed styles
 │   └── app.js             Frontend logic (auth + direct Copilot calls)
 └── server/
     ├── index.js           Express server (sessions, static files, CSRF)
-    └── auth.js            OAuth flow + Copilot token exchange
+    └── auth.js            OAuth flow + Copilot token exchange (local dev)
 ```
 
 ---
 
 ## Security Considerations
 
-| Concern             | Mitigation                                               |
-| ------------------- | -------------------------------------------------------- |
-| GitHub token leak   | Stored server-side in the session, never sent to browser |
-| CSRF                | Origin header check + `sameSite: lax` cookies            |
-| Session hijacking   | `httpOnly` cookies; `secure: true` in production         |
-| Copilot token scope | Short-lived; auto-refreshed; only grants Copilot access  |
-| Secret management   | `SESSION_SECRET` required in production                  |
+| Concern             | Mitigation                                                        |
+| ------------------- | ----------------------------------------------------------------- |
+| GitHub token leak   | Stored server-side in Table Storage, never sent to browser        |
+| Session cookie      | Opaque random ID only — no token material in the cookie           |
+| Table Storage access| Managed Identity + RBAC (Storage Table Data Contributor); no keys |
+| Secret management   | OAuth secrets in Key Vault; injected via Bicep `getSecret()` at deploy time |
+| CSRF                | Origin header check + `sameSite: lax` cookies                     |
+| Session hijacking   | `httpOnly` cookies; `secure: true` in production                  |
+| Copilot token scope | Short-lived; auto-refreshed; cached server-side with 5-min margin |
+| Session expiry      | Server-side TTL (24 h); expired sessions deleted on access        |
 
 ---
 

@@ -6,7 +6,7 @@ app.http("authMe", {
   authLevel: "anonymous",
   route: "auth/me",
   handler: async (request) => {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session || !session.githubToken) {
       return { status: 401, jsonBody: { authenticated: false } };
     }

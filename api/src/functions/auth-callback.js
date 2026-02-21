@@ -1,5 +1,5 @@
 const { app } = require("@azure/functions");
-const { setSession } = require("../utils/session");
+const { createSession } = require("../utils/session");
 
 const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
 
@@ -40,7 +40,7 @@ app.http("authCallback", {
       }
       const user = await userRes.json();
 
-      const cookie = setSession({
+      const cookie = await createSession({
         githubToken: data.access_token,
         user: { login: user.login, avatar: user.avatar_url },
       });

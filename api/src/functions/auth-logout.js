@@ -1,5 +1,5 @@
 const { app } = require("@azure/functions");
-const { clearSession } = require("../utils/session");
+const { destroySession } = require("../utils/session");
 
 app.http("authLogout", {
   methods: ["POST"],
@@ -16,9 +16,10 @@ app.http("authLogout", {
       }
     }
 
+    const cookie = await destroySession(request);
     return {
       jsonBody: { ok: true },
-      headers: { "Set-Cookie": clearSession() },
+      headers: { "Set-Cookie": cookie },
     };
   },
 });
