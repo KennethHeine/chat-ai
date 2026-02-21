@@ -3,7 +3,11 @@ const { DefaultAzureCredential } = require("@azure/identity");
 
 const TABLE_NAME = process.env.SESSION_TABLE_NAME || "sessions";
 const PARTITION_KEY = "sess";
-const SESSION_TTL_MS = 86400 * 1000; // 24 hours
+const SESSION_MAX_AGE_SECONDS = parseInt(process.env.SESSION_MAX_AGE, 10);
+const SESSION_TTL_MS =
+  Number.isFinite(SESSION_MAX_AGE_SECONDS) && SESSION_MAX_AGE_SECONDS > 0
+    ? SESSION_MAX_AGE_SECONDS * 1000
+    : 86400 * 1000; // default 24 hours
 
 let _client = null;
 
@@ -82,7 +86,11 @@ async function updateSessionEntity(sessionId, updates) {
     entity.copilotBaseUrl = updates.copilotCache.baseUrl;
     entity.copilotExpiresAt = updates.copilotCache.expiresAt;
   }
-  await getTableClient().updateEntity(entity, "Merge");
+  try {
+    await getTableClient().updateEntity(entity, "Merge");
+  } catch (err) {
+    if (err.statusCode !== 404) throw err;
+  }
 }
 
 async function deleteSessionEntity(sessionId) {

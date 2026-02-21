@@ -23,7 +23,7 @@ function generateSessionId() {
 
 function getSessionId(request) {
   const cookies = request.headers.get("cookie") || "";
-  const match = cookies.match(new RegExp(`${COOKIE_NAME}=([^;]+)`));
+  const match = cookies.match(new RegExp(`(?:^|;\\s*)${COOKIE_NAME}=([^;]+)`));
   return match ? match[1] : null;
 }
 

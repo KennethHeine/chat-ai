@@ -74,7 +74,7 @@ deployment. They are used at runtime by the Azure Functions backend.
 | **App setting** | `AZURE_STORAGE_ACCOUNT` |
 | **Purpose** | The name of the Azure Storage Account that holds the `sessions` table. When set, the backend uses **Managed Identity** (no keys or connection strings) to access Table Storage. |
 | **Where to find it** | Azure Portal → Storage accounts → your account → **Storage account name** |
-| **Note** | The Static Web App's system-assigned Managed Identity must have the **Storage Table Data Contributor** role on this storage account. The Bicep template configures this automatically. |
+| **Note** | The Static Web App's system-assigned Managed Identity must have the **Storage Table Data Contributor** role on this storage account. The Bicep template configures the identity and role assignment, but you must still set the `AZURE_STORAGE_ACCOUNT` app setting (for example via the deploy workflow) to this storage account name. |
 
 ---
 

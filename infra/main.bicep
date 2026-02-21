@@ -5,7 +5,7 @@ param location string = 'westeurope'
 param staticWebAppName string = 'swa-chat-ai'
 
 @description('Name of the Storage Account for session data')
-param storageAccountName string = 'stchataisessions'
+param storageAccountName string = 'st${uniqueString(resourceGroup().id)}sessions'
 
 @description('Environment tag for resource management')
 param environment string = 'production'
