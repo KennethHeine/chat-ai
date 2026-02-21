@@ -7,7 +7,7 @@ app.http("authCallback", {
   methods: ["GET"],
   authLevel: "anonymous",
   route: "auth/callback",
-  handler: async (request) => {
+  handler: async (request, context) => {
     const code = request.query.get("code");
     if (!code) {
       return { status: 400, jsonBody: { error: "Missing authorization code" } };
@@ -49,7 +49,8 @@ app.http("authCallback", {
         status: 302,
         headers: { Location: "/", "Set-Cookie": cookie },
       };
-    } catch {
+    } catch (err) {
+      context.error("GitHub authentication failed:", err);
       return { status: 502, jsonBody: { error: "GitHub authentication failed" } };
     }
   },

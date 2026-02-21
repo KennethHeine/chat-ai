@@ -4,7 +4,11 @@ const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;
 
 function getKey() {
-  const secret = process.env.SESSION_SECRET || "dev-secret-change-me";
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) {
+    console.warn("SESSION_SECRET is not set – using insecure default (dev only)");
+    return crypto.createHash("sha256").update("dev-secret-change-me").digest();
+  }
   return crypto.createHash("sha256").update(secret).digest();
 }
 

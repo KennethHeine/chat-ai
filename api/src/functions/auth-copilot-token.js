@@ -16,7 +16,7 @@ app.http("authCopilotToken", {
   methods: ["GET"],
   authLevel: "anonymous",
   route: "auth/copilot-token",
-  handler: async (request) => {
+  handler: async (request, context) => {
     const session = getSession(request);
     if (!session || !session.githubToken) {
       return { status: 401, jsonBody: { error: "Not authenticated" } };
@@ -39,7 +39,8 @@ app.http("authCopilotToken", {
       const baseUrl = parseBaseUrl(data.token);
 
       return { jsonBody: { token: data.token, baseUrl } };
-    } catch {
+    } catch (err) {
+      context.error("Copilot token exchange failed:", err);
       return { status: 502, jsonBody: { error: "Copilot token exchange failed" } };
     }
   },
