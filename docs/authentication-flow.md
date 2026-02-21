@@ -288,6 +288,7 @@ ensure the request originates from the same site.
 | GitHub token exposure | Stored server-side in Azure Table Storage; never sent to browser |
 | Session cookie content | Opaque random ID only — no token material in the cookie |
 | Table Storage access | Managed Identity + RBAC (Storage Table Data Contributor); no storage keys |
+| Secret management | OAuth secrets in Azure Key Vault; injected via Bicep `getSecret()` at deploy time |
 | CSRF | Origin header validation + `SameSite=Lax` cookies |
 | Session hijacking | `HttpOnly` cookies; `Secure` flag in production |
 | Copilot token lifetime | Short-lived; auto-refreshed; cached server-side with 5-min margin |

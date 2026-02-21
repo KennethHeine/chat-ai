@@ -28,16 +28,6 @@ jobs:
           resourceGroupName: rg-chat-ai
           template: ./infra/main.bicep
 
-      - name: Configure App Settings
-        run: |
-          az staticwebapp appsettings set \
-            --name swa-chat-ai \
-            --resource-group rg-chat-ai \
-            --setting-names \
-              GITHUB_CLIENT_ID="${{ secrets.OAUTH_CLIENT_ID }}" \
-              GITHUB_CLIENT_SECRET="${{ secrets.OAUTH_CLIENT_SECRET }}" \
-              SESSION_SECRET="${{ secrets.SESSION_SECRET }}"
-
       - name: Get SWA Deployment Token
         id: swa-token
         run: |

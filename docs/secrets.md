@@ -9,8 +9,8 @@ one is configured, and why it is needed.
 
 These secrets are configured in the repository under **Settings → Secrets and
 variables → Actions**. They are used by the
-[deploy workflow](../.github/workflows/deploy.yml) to authenticate with Azure
-and configure the Static Web App.
+[deploy workflows](../.github/workflows/) to authenticate with Azure and
+populate Key Vault.
 
 ### `AZURE_CLIENT_ID`
 
@@ -35,24 +35,16 @@ and configure the Static Web App.
 | | |
 | ---------- | ------------------------------------------------------------ |
 | **Used by** | GitHub Actions OIDC login (`azure/login@v2`) |
-| **Purpose** | Identifies the Azure subscription where resources (resource group `rg-chat-ai`, Static Web App, Storage Account) are deployed. |
+| **Purpose** | Identifies the Azure subscription where resources (resource group `rg-chat-ai`, Static Web App, Storage Account, Key Vault) are deployed. |
 | **Where to find it** | Azure Portal → Subscriptions → **Subscription ID** |
 | **Docs** | [Use GitHub Actions to connect to Azure](https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure?tabs=azure-portal%2Clinux#use-the-azure-login-action-with-openid-connect) |
-
----
-
-## Application Secrets
-
-These secrets are passed to the Azure Static Web App as **app settings** during
-deployment. They are used at runtime by the Azure Functions backend.
 
 ### `OAUTH_CLIENT_ID`
 
 | | |
 | ---------- | ------------------------------------------------------------ |
-| **Used by** | Azure Functions (`auth-github`, `auth-callback`) |
-| **App setting** | `GITHUB_CLIENT_ID` |
-| **Purpose** | Identifies the GitHub OAuth App when redirecting users to GitHub for login and when exchanging the authorization code for an access token. |
+| **Used by** | Key Vault deploy workflow (`deploy-keyvault.yml`) |
+| **Purpose** | Stored into Key Vault as the `GitHubClientId` secret. The main Bicep template reads it via `getSecret()` and injects it as the `GITHUB_CLIENT_ID` app setting on the Static Web App. |
 | **Where to find it** | GitHub → Settings → Developer settings → OAuth Apps → your app → **Client ID** |
 | **Docs** | [Creating an OAuth app](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app) |
 
@@ -60,21 +52,57 @@ deployment. They are used at runtime by the Azure Functions backend.
 
 | | |
 | ---------- | ------------------------------------------------------------ |
-| **Used by** | Azure Functions (`auth-callback`) |
-| **App setting** | `GITHUB_CLIENT_SECRET` |
-| **Purpose** | Authenticates the server when exchanging the OAuth authorization code for a GitHub access token. This secret must never be exposed to the browser. |
+| **Used by** | Key Vault deploy workflow (`deploy-keyvault.yml`) |
+| **Purpose** | Stored into Key Vault as the `GitHubClientSecret` secret. The main Bicep template reads it via `getSecret()` and injects it as the `GITHUB_CLIENT_SECRET` app setting on the Static Web App. |
 | **Where to find it** | GitHub → Settings → Developer settings → OAuth Apps → your app → **Client secrets** → Generate a new client secret |
 | **Docs** | [Creating an OAuth app](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app) |
 
-### `AZURE_STORAGE_ACCOUNT`
+---
 
-| | |
-| ---------- | ------------------------------------------------------------ |
-| **Used by** | Azure Functions (session store via `api/src/utils/session-store.js`) |
-| **App setting** | `AZURE_STORAGE_ACCOUNT` |
-| **Purpose** | The name of the Azure Storage Account that holds the `sessions` table. When set, the backend uses **Managed Identity** (no keys or connection strings) to access Table Storage. |
-| **Where to find it** | Azure Portal → Storage accounts → your account → **Storage account name** |
-| **Note** | The Static Web App's system-assigned Managed Identity must have the **Storage Table Data Contributor** role on this storage account. The Bicep template configures the identity and role assignment, but you must still set the `AZURE_STORAGE_ACCOUNT` app setting (for example via the deploy workflow) to this storage account name. |
+## Azure Key Vault
+
+GitHub OAuth secrets (`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`) are stored in
+Azure Key Vault and referenced at deployment time by the main Bicep template
+using `getSecret()`. This keeps secrets out of workflow logs and centralizes
+secret management in Azure.
+
+| Key Vault secret       | Maps to SWA app setting  | Purpose |
+| ---------------------- | ------------------------ | ------- |
+| `GitHubClientId`       | `GITHUB_CLIENT_ID`       | GitHub OAuth login redirect + token exchange |
+| `GitHubClientSecret`   | `GITHUB_CLIENT_SECRET`   | GitHub OAuth token exchange (server-side only) |
+
+### Deployment order
+
+1. **Deploy Key Vault first** — run the `Deploy Key Vault` workflow
+   (`deploy-keyvault.yml`) via manual dispatch. This creates the Key Vault,
+   assigns the deployer the **Key Vault Secrets Officer** role, and populates
+   the two OAuth secrets from GitHub Actions secrets.
+2. **Deploy main infrastructure** — run the `Deploy to Azure` workflow
+   (`deploy.yml`). The Bicep template references the Key Vault via
+   `getSecret()` and injects the secrets as SWA app settings along with
+   `AZURE_STORAGE_ACCOUNT`.
+
+### RBAC roles
+
+| Role | Assigned to | Scope | Purpose |
+| ---- | ----------- | ----- | ------- |
+| Key Vault Secrets Officer | Deployer service principal | Key Vault | Write secrets during `deploy-keyvault.yml` |
+| Key Vault Secrets User | SWA managed identity | Key Vault | Read secrets during ARM deployment (`getSecret()`) |
+| Storage Table Data Contributor | SWA managed identity | Storage Account | Read/write session entities at runtime |
+
+---
+
+## App Settings (set by Bicep)
+
+The following app settings are configured on the Static Web App automatically
+by the `main.bicep` template — no manual `az staticwebapp appsettings set`
+needed.
+
+| App setting            | Source | Purpose |
+| ---------------------- | ------ | ------- |
+| `AZURE_STORAGE_ACCOUNT`| Bicep output (`storageAccount.name`) | Table Storage access via Managed Identity |
+| `GITHUB_CLIENT_ID`     | Key Vault → `getSecret('GitHubClientId')` | GitHub OAuth |
+| `GITHUB_CLIENT_SECRET` | Key Vault → `getSecret('GitHubClientSecret')` | GitHub OAuth |
 
 ---
 
@@ -121,7 +149,7 @@ The `.env` file is listed in `.gitignore` and must never be committed.
 | `AZURE_CLIENT_ID` | GitHub Actions secrets | Azure OIDC login |
 | `AZURE_TENANT_ID` | GitHub Actions secrets | Azure OIDC login |
 | `AZURE_SUBSCRIPTION_ID` | GitHub Actions secrets | Azure OIDC login |
-| `OAUTH_CLIENT_ID` | GitHub Actions secrets → SWA app settings | GitHub OAuth (login redirect) |
-| `OAUTH_CLIENT_SECRET` | GitHub Actions secrets → SWA app settings | GitHub OAuth (token exchange) |
-| `AZURE_STORAGE_ACCOUNT` | SWA app settings | Table Storage access via Managed Identity |
+| `OAUTH_CLIENT_ID` | GitHub Actions secrets → Key Vault | GitHub OAuth (stored as `GitHubClientId`) |
+| `OAUTH_CLIENT_SECRET` | GitHub Actions secrets → Key Vault | GitHub OAuth (stored as `GitHubClientSecret`) |
+| `AZURE_STORAGE_ACCOUNT` | Set by Bicep (auto) | Table Storage access via Managed Identity |
 | `SESSION_SECRET` | `.env` (local dev only) | Express dev server sessions |

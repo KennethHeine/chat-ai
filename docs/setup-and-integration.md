@@ -34,9 +34,15 @@ handles authentication and token exchange.
   │    token            │
   │  /auth/me           │           ┌─────────────────────┐
   │  /auth/logout       │           │  Azure Table Storage │
-  └─────────┬───────────┘           │  (sessions table)    │
-            │    session CRUD       │  Managed Identity    │
-            └──────────────────────>│  + RBAC              │
+  └──┬──────────────────┘           │  (sessions table)    │
+     │    session CRUD              │  Managed Identity    │
+     ├─────────────────────────────>│  + RBAC              │
+     │                              └─────────────────────┘
+     │    secrets (deploy-time)
+     │                              ┌─────────────────────┐
+     └─────────────────────────────>│  Azure Key Vault     │
+                                    │  (OAuth secrets)     │
+                                    │  Bicep getSecret()   │
                                     └─────────────────────┘
 ```
 
@@ -217,7 +223,10 @@ chat-ai/
 │   ├── secrets.md               Required secrets reference
 │   └── setup-and-integration.md This document
 ├── infra/
-│   └── main.bicep         Bicep: SWA + Storage Account + RBAC
+│   ├── keyvault.bicep     Bicep: Key Vault + deployer RBAC
+│   ├── main.bicep         Bicep: SWA + Storage + KV refs + RBAC + app settings
+│   └── modules/
+│       └── swa-appsettings.bicep  SWA app settings (accepts @secure params)
 ├── public/
 │   ├── index.html         Login and chat UI
 │   ├── style.css          Dark-themed styles
@@ -236,6 +245,7 @@ chat-ai/
 | GitHub token leak   | Stored server-side in Table Storage, never sent to browser        |
 | Session cookie      | Opaque random ID only — no token material in the cookie           |
 | Table Storage access| Managed Identity + RBAC (Storage Table Data Contributor); no keys |
+| Secret management   | OAuth secrets in Key Vault; injected via Bicep `getSecret()` at deploy time |
 | CSRF                | Origin header check + `sameSite: lax` cookies                     |
 | Session hijacking   | `httpOnly` cookies; `secure: true` in production                  |
 | Copilot token scope | Short-lived; auto-refreshed; cached server-side with 5-min margin |
