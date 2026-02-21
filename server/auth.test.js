@@ -13,6 +13,7 @@ function startServer() {
         secret: "test-secret",
         resave: false,
         saveUninitialized: false,
+        cookie: { secure: false }, // tests run over HTTP on localhost
       })
     );
     app.use("/auth", require("./auth"));
