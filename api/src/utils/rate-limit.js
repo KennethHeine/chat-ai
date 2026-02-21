@@ -1,5 +1,9 @@
 const WINDOW_MS = 60 * 1000; // 1-minute fixed window
+const UNKNOWN_IP_MAX = 5; // stricter limit when client IP cannot be determined
 
+// NOTE: In-memory store — each Azure Functions instance keeps its own counters.
+// Effective per-IP limits scale with the number of instances. This is acceptable
+// for this app because SWA managed functions typically run on very few instances.
 const stores = new Map();
 let lastCleanup = Date.now();
 
@@ -42,6 +46,7 @@ function checkRateLimit(request, { route, maxRequests = 60 }) {
 
   const store = getStore(route);
   const ip = getClientIp(request);
+  const limit = ip === "unknown" ? Math.min(maxRequests, UNKNOWN_IP_MAX) : maxRequests;
   const now = Date.now();
 
   let record = store.get(ip);
@@ -50,15 +55,14 @@ function checkRateLimit(request, { route, maxRequests = 60 }) {
     store.set(ip, record);
   }
 
-  record.count++;
-
-  if (record.count > maxRequests) {
+  if (record.count >= limit) {
     const retryAfter = Math.ceil(
       (record.windowStart + WINDOW_MS - now) / 1000
     );
     return { allowed: false, retryAfter };
   }
 
+  record.count++;
   return { allowed: true };
 }
 
