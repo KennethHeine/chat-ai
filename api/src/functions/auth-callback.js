@@ -6,7 +6,7 @@ const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
 app.http("authCallback", {
   methods: ["GET"],
   authLevel: "anonymous",
-  route: "auth/callback",
+  route: "auth/github/callback",
   handler: async (request, context) => {
     const code = request.query.get("code");
     if (!code) {

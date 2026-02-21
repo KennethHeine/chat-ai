@@ -7,6 +7,10 @@ param staticWebAppName string = 'swa-chat-ai'
 resource staticWebApp 'Microsoft.Web/staticSites@2023-12-01' = {
   name: staticWebAppName
   location: location
+  tags: {
+    project: 'chat-ai'
+    environment: 'production'
+  }
   sku: {
     name: 'Free'
     tier: 'Free'

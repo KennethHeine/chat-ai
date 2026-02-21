@@ -6,7 +6,17 @@ const IV_LENGTH = 16;
 function getKey() {
   const secret = process.env.SESSION_SECRET;
   if (!secret) {
-    console.warn("SESSION_SECRET is not set – using insecure default (dev only)");
+    const nodeEnv = process.env.NODE_ENV;
+    const isDev = !nodeEnv || nodeEnv === "development";
+    if (!isDev) {
+      throw new Error(
+        "SESSION_SECRET is not set. It must be defined in non-development environments."
+      );
+    }
+    console.warn(
+      "SESSION_SECRET is not set – using insecure default key (development only). " +
+        "Do NOT use this configuration in production."
+    );
     return crypto.createHash("sha256").update("dev-secret-change-me").digest();
   }
   return crypto.createHash("sha256").update(secret).digest();
