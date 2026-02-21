@@ -16,7 +16,7 @@ let copilotBaseUrl = null;
 
 async function checkAuth() {
   try {
-    const res = await fetch("/auth/me");
+    const res = await fetch("/api/auth/me");
     const data = await res.json();
     if (data.authenticated) {
       showChat(data.user);
@@ -29,7 +29,7 @@ async function checkAuth() {
 }
 
 async function fetchCopilotToken() {
-  const res = await fetch("/auth/copilot-token");
+  const res = await fetch("/api/auth/copilot-token");
   if (!res.ok) throw new Error("Failed to get Copilot token");
   const data = await res.json();
   copilotToken = data.token;
@@ -111,7 +111,7 @@ function handleChatResponse(data) {
 // --------------- Logout ---------------
 
 logoutBtn.addEventListener("click", async () => {
-  await fetch("/auth/logout", { method: "POST" });
+  await fetch("/api/auth/logout", { method: "POST" });
   history.length = 0;
   messagesEl.innerHTML = "";
   copilotToken = null;

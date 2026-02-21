@@ -1,0 +1,57 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy Infrastructure
+        uses: azure/arm-deploy@v2
+        with:
+          resourceGroupName: rg-chat-ai
+          template: ./infra/main.bicep
+
+      - name: Configure App Settings
+        run: |
+          az staticwebapp appsettings set \
+            --name swa-chat-ai \
+            --resource-group rg-chat-ai \
+            --setting-names \
+              GITHUB_CLIENT_ID="${{ secrets.OAUTH_CLIENT_ID }}" \
+              GITHUB_CLIENT_SECRET="${{ secrets.OAUTH_CLIENT_SECRET }}" \
+              SESSION_SECRET="${{ secrets.SESSION_SECRET }}"
+
+      - name: Get SWA Deployment Token
+        id: swa-token
+        run: |
+          SWA_TOKEN=$(az staticwebapp secrets list --name swa-chat-ai --resource-group rg-chat-ai --query "properties.apiKey" -o tsv)
+          echo "::add-mask::$SWA_TOKEN"
+          echo "token=$SWA_TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy Static Web App
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ steps.swa-token.outputs.token }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: public
+          api_location: api
+          output_location: ""
+          skip_app_build: true
