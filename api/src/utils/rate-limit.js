@@ -1,4 +1,4 @@
-const WINDOW_MS = 60 * 1000; // 1-minute sliding window
+const WINDOW_MS = 60 * 1000; // 1-minute fixed window
 
 const stores = new Map();
 let lastCleanup = Date.now();
