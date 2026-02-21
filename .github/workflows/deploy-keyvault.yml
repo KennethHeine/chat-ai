@@ -38,16 +38,22 @@ jobs:
       - name: Wait for RBAC Propagation
         run: |
           echo "Waiting for Key Vault RBAC to propagate..."
+          rbac_ready=0
           for i in $(seq 1 12); do
             if az keyvault secret list \
               --vault-name "${{ steps.keyvault.outputs.keyVaultName }}" \
-              --query "length(@)" -o tsv 2>/dev/null; then
+              --query "length(@)" -o tsv >/dev/null 2>&1; then
               echo "Key Vault access confirmed."
+              rbac_ready=1
               break
             fi
             echo "Attempt $i/12 — retrying in 10s..."
             sleep 10
           done
+          if [ "$rbac_ready" -ne 1 ]; then
+            echo "ERROR: Timed out waiting for Key Vault RBAC to propagate after 12 attempts (2 minutes)." >&2
+            exit 1
+          fi
 
       - name: Store GitHub OAuth Secrets
         run: |
