@@ -1,5 +1,6 @@
 const { app } = require("@azure/functions");
 const { getSession, updateSession } = require("../utils/session");
+const { checkRateLimit, rateLimitResponse } = require("../utils/rate-limit");
 
 const COPILOT_TOKEN_URL = "https://api.github.com/copilot_internal/v2/token";
 const DEFAULT_COPILOT_BASE = "https://api.individual.githubcopilot.com";
@@ -22,6 +23,9 @@ app.http("authCopilotToken", {
   authLevel: "anonymous",
   route: "auth/copilot-token",
   handler: async (request, context) => {
+    const rl = checkRateLimit(request, { route: "copilot-token", maxRequests: 20 });
+    if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
+
     const session = await getSession(request);
     if (!session || !session.githubToken) {
       return { status: 401, jsonBody: { error: "Not authenticated" } };
@@ -45,8 +49,8 @@ app.http("authCopilotToken", {
       });
 
       if (!response.ok) {
-        const text = await response.text();
-        return { status: response.status, jsonBody: { error: `Token exchange failed: ${text}` } };
+        context.warn("Copilot token exchange returned HTTP %d", response.status);
+        return { status: response.status, jsonBody: { error: "Copilot token exchange failed" } };
       }
 
       const data = await response.json();
