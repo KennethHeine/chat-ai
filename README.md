@@ -4,7 +4,7 @@ A simple chat application with GitHub OAuth authentication and the GitHub Copilo
 OpenAI-compatible API. The frontend calls the Copilot API directly — the backend
 only handles authentication and token exchange.
 
-**Production:** <https://chat-ai.kscloud.io>
+**Production:** <https://chat.kscloud.io>
 
 ## Prerequisites
 

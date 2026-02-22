@@ -10,7 +10,7 @@ handles authentication and token exchange.
 ## Architecture
 
 The application is deployed to **Azure Static Web Apps** with a custom domain at
-`chat-ai.kscloud.io` (CNAME → the SWA default hostname).
+`chat.kscloud.io` (CNAME → the SWA default hostname).
 
 ```
 ┌──────────────────────────────────────────────────────┐
@@ -243,10 +243,10 @@ chat-ai/
 
 ## Custom Domain
 
-The production site is available at **<https://chat-ai.kscloud.io>**. The custom
+The production site is available at **<https://chat.kscloud.io>**. The custom
 domain is configured via:
 
-1. A **CNAME** DNS record pointing `chat-ai.kscloud.io` to the Static Web App
+1. A **CNAME** DNS record pointing `chat.kscloud.io` to the Static Web App
    default hostname.
 2. A `Microsoft.Web/staticSites/customDomains` resource in `infra/main.bicep`
    that registers the domain with Azure and provisions a managed TLS certificate.
