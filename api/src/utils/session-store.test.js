@@ -6,11 +6,11 @@ const mockTableClient = {
   deleteEntity: jest.fn(),
 };
 
-jest.mock("@azure/data-tables", () => ({
-  TableClient: {
-    fromConnectionString: jest.fn(() => mockTableClient),
-  },
-}));
+jest.mock("@azure/data-tables", () => {
+  const TableClient = jest.fn(() => mockTableClient);
+  TableClient.fromConnectionString = jest.fn(() => mockTableClient);
+  return { TableClient };
+});
 
 jest.mock("@azure/identity", () => ({
   DefaultAzureCredential: jest.fn(),

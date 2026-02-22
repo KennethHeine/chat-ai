@@ -2,8 +2,9 @@
  * @jest-environment jsdom
  */
 
-// Set up minimal DOM before requiring app.js
-beforeEach(() => {
+let appModule;
+
+function setupDOM() {
   document.body.innerHTML = `
     <div id="login-screen" class="hidden"></div>
     <div id="chat-screen" class="hidden"></div>
@@ -16,198 +17,163 @@ beforeEach(() => {
       <select id="model-select"><option value="gpt-4o">gpt-4o</option></select>
     </form>
   `;
+}
+
+function loadApp() {
+  jest.resetModules();
+  return require("./app");
+}
+
+beforeEach(() => {
+  setupDOM();
+  global.fetch = jest.fn();
+  appModule = loadApp();
 });
 
-describe("UI helpers", () => {
-  test("showLogin shows login screen and hides chat", () => {
+afterEach(() => {
+  delete global.fetch;
+});
+
+describe("showLogin", () => {
+  test("shows login screen and hides chat", () => {
     const loginScreen = document.getElementById("login-screen");
     const chatScreen = document.getElementById("chat-screen");
     loginScreen.classList.add("hidden");
     chatScreen.classList.remove("hidden");
 
-    // Simulate showLogin behavior
-    loginScreen.classList.remove("hidden");
-    chatScreen.classList.add("hidden");
+    appModule.showLogin();
 
     expect(loginScreen.classList.contains("hidden")).toBe(false);
     expect(chatScreen.classList.contains("hidden")).toBe(true);
   });
+});
 
-  test("showChat shows chat screen and hides login", () => {
+describe("showChat", () => {
+  test("shows chat screen, hides login, and sets user info", () => {
     const loginScreen = document.getElementById("login-screen");
     const chatScreen = document.getElementById("chat-screen");
-    loginScreen.classList.remove("hidden");
-    chatScreen.classList.add("hidden");
+    const userAvatar = document.getElementById("user-avatar");
+    const userName = document.getElementById("user-name");
 
-    // Simulate showChat behavior
-    loginScreen.classList.add("hidden");
-    chatScreen.classList.remove("hidden");
+    appModule.showChat({ login: "alice", avatar: "https://example.com/a.png" });
 
     expect(loginScreen.classList.contains("hidden")).toBe(true);
     expect(chatScreen.classList.contains("hidden")).toBe(false);
+    expect(userAvatar.src).toBe("https://example.com/a.png");
+    expect(userName.textContent).toBe("alice");
   });
+});
 
-  test("appendMessage adds a message element to messages container", () => {
+describe("appendMessage", () => {
+  test("adds a user message element to the messages container", () => {
     const messagesEl = document.getElementById("messages");
-    const div = document.createElement("div");
-    div.className = "msg user";
-    div.textContent = "Hello!";
-    messagesEl.appendChild(div);
+
+    appModule.appendMessage("user", "Hello!");
 
     expect(messagesEl.children.length).toBe(1);
     expect(messagesEl.children[0].textContent).toBe("Hello!");
     expect(messagesEl.children[0].className).toBe("msg user");
   });
 
-  test("appendMessage handles assistant role", () => {
+  test("adds an assistant message element", () => {
     const messagesEl = document.getElementById("messages");
-    const div = document.createElement("div");
-    div.className = "msg assistant";
-    div.textContent = "Hi there!";
-    messagesEl.appendChild(div);
+
+    appModule.appendMessage("assistant", "Hi there!");
 
     expect(messagesEl.children[0].className).toBe("msg assistant");
+    expect(messagesEl.children[0].textContent).toBe("Hi there!");
   });
 });
 
 describe("handleChatResponse", () => {
-  function handleChatResponse(data) {
-    const messagesEl = document.getElementById("messages");
-    if (data.error) {
-      const div = document.createElement("div");
-      div.className = "msg assistant";
-      div.textContent = `Error: ${data.error.message || JSON.stringify(data.error)}`;
-      messagesEl.appendChild(div);
-      return null;
-    }
-    const reply = data.choices?.[0]?.message?.content ?? "No response from model.";
-    const div = document.createElement("div");
-    div.className = "msg assistant";
-    div.textContent = reply;
-    messagesEl.appendChild(div);
-    return reply;
-  }
-
   test("displays assistant reply from successful response", () => {
     const messagesEl = document.getElementById("messages");
-    const data = {
+    appModule.handleChatResponse({
       choices: [{ message: { content: "Hello from AI!" } }],
-    };
-    const reply = handleChatResponse(data);
-    expect(reply).toBe("Hello from AI!");
+    });
     expect(messagesEl.children[0].textContent).toBe("Hello from AI!");
+    expect(messagesEl.children[0].className).toBe("msg assistant");
   });
 
   test("displays error message on error response", () => {
     const messagesEl = document.getElementById("messages");
-    const data = { error: { message: "Rate limit exceeded" } };
-    handleChatResponse(data);
+    appModule.handleChatResponse({ error: { message: "Rate limit exceeded" } });
     expect(messagesEl.children[0].textContent).toContain("Rate limit exceeded");
   });
 
   test("displays fallback when no choices", () => {
     const messagesEl = document.getElementById("messages");
-    const data = { choices: [] };
-    const reply = handleChatResponse(data);
-    expect(reply).toBe("No response from model.");
+    appModule.handleChatResponse({ choices: [] });
+    expect(messagesEl.children[0].textContent).toBe("No response from model.");
   });
 
   test("displays fallback when choices is undefined", () => {
     const messagesEl = document.getElementById("messages");
-    const data = {};
-    const reply = handleChatResponse(data);
-    expect(reply).toBe("No response from model.");
+    appModule.handleChatResponse({});
+    expect(messagesEl.children[0].textContent).toBe("No response from model.");
   });
 });
 
-describe("checkAuth behavior", () => {
-  test("shows login screen when not authenticated", async () => {
-    global.fetch = jest.fn().mockResolvedValue({
-      json: () => Promise.resolve({ authenticated: false }),
-    });
-
-    const loginScreen = document.getElementById("login-screen");
-    const chatScreen = document.getElementById("chat-screen");
-
-    const res = await fetch("/api/auth/me");
-    const data = await res.json();
-    if (data.authenticated) {
-      loginScreen.classList.add("hidden");
-      chatScreen.classList.remove("hidden");
-    } else {
-      loginScreen.classList.remove("hidden");
-      chatScreen.classList.add("hidden");
-    }
-
-    expect(loginScreen.classList.contains("hidden")).toBe(false);
-    expect(chatScreen.classList.contains("hidden")).toBe(true);
-  });
-
-  test("shows chat screen when authenticated", async () => {
+describe("checkAuth", () => {
+  test("calls showChat when authenticated", async () => {
     const user = { login: "testuser", avatar: "https://example.com/avatar.png" };
     global.fetch = jest.fn().mockResolvedValue({
       json: () => Promise.resolve({ authenticated: true, user }),
     });
 
+    await appModule.checkAuth();
+
     const loginScreen = document.getElementById("login-screen");
     const chatScreen = document.getElementById("chat-screen");
-    const userAvatar = document.getElementById("user-avatar");
     const userName = document.getElementById("user-name");
-
-    const res = await fetch("/api/auth/me");
-    const data = await res.json();
-    if (data.authenticated) {
-      loginScreen.classList.add("hidden");
-      chatScreen.classList.remove("hidden");
-      userAvatar.src = data.user.avatar;
-      userName.textContent = data.user.login;
-    }
-
     expect(loginScreen.classList.contains("hidden")).toBe(true);
     expect(chatScreen.classList.contains("hidden")).toBe(false);
     expect(userName.textContent).toBe("testuser");
   });
 
-  test("shows login screen when fetch fails", async () => {
-    global.fetch = jest.fn().mockRejectedValue(new Error("Network error"));
+  test("calls showLogin when not authenticated", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      json: () => Promise.resolve({ authenticated: false }),
+    });
+
+    await appModule.checkAuth();
 
     const loginScreen = document.getElementById("login-screen");
     const chatScreen = document.getElementById("chat-screen");
+    expect(loginScreen.classList.contains("hidden")).toBe(false);
+    expect(chatScreen.classList.contains("hidden")).toBe(true);
+  });
 
-    try {
-      await fetch("/api/auth/me");
-    } catch {
-      loginScreen.classList.remove("hidden");
-      chatScreen.classList.add("hidden");
-    }
+  test("calls showLogin when fetch fails", async () => {
+    global.fetch = jest.fn().mockRejectedValue(new Error("Network error"));
 
+    await appModule.checkAuth();
+
+    const loginScreen = document.getElementById("login-screen");
     expect(loginScreen.classList.contains("hidden")).toBe(false);
   });
 });
 
-describe("logout behavior", () => {
-  test("clears state and shows login", async () => {
+describe("logout button", () => {
+  test("clears messages and shows login on click", async () => {
     global.fetch = jest.fn().mockResolvedValue({
       json: () => Promise.resolve({ ok: true }),
     });
 
     const messagesEl = document.getElementById("messages");
-    const loginScreen = document.getElementById("login-screen");
-    const chatScreen = document.getElementById("chat-screen");
+    const logoutBtn = document.getElementById("logout-btn");
 
-    // Add some messages first
-    const div = document.createElement("div");
-    div.textContent = "test message";
-    messagesEl.appendChild(div);
+    // Add a message first
+    appModule.appendMessage("user", "test message");
+    expect(messagesEl.children.length).toBe(1);
 
-    // Simulate logout
-    await fetch("/api/auth/logout", { method: "POST" });
-    messagesEl.innerHTML = "";
-    loginScreen.classList.remove("hidden");
-    chatScreen.classList.add("hidden");
+    // Click logout
+    logoutBtn.click();
+    // Wait for the async handler to complete
+    await new Promise((r) => setTimeout(r, 0));
 
     expect(messagesEl.children.length).toBe(0);
+    const loginScreen = document.getElementById("login-screen");
     expect(loginScreen.classList.contains("hidden")).toBe(false);
-    expect(chatScreen.classList.contains("hidden")).toBe(true);
   });
 });

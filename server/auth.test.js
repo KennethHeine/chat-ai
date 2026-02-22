@@ -1,6 +1,5 @@
 const express = require("express");
 const session = require("express-session");
-const http = require("http");
 
 let app, server;
 

@@ -119,4 +119,10 @@ logoutBtn.addEventListener("click", async () => {
   showLogin();
 });
 
-checkAuth();
+// --------------- Exports for testing ---------------
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { showLogin, showChat, appendMessage, handleChatResponse, checkAuth, fetchCopilotToken };
+} else {
+  checkAuth();
+}

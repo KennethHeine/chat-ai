@@ -8,10 +8,7 @@ function makeRequest(ip, headers = {}) {
   return { headers: { get: (key) => h.get(key) || null } };
 }
 
-beforeEach(() => {
-  // Clear internal stores between tests by re-requiring the module
-  jest.resetModules();
-});
+// Each test uses a unique route name so the in-memory store doesn't leak state.
 
 describe("checkRateLimit", () => {
   test("allows requests under the limit", () => {
