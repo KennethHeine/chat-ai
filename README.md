@@ -39,6 +39,16 @@ only handles authentication and token exchange.
 
 4. Open <http://localhost:3000> and sign in with GitHub.
 
+## Testing
+
+```bash
+npm test              # server + frontend tests
+cd api && npm test    # API (Azure Functions) tests
+```
+
+See **[Testing Guide](docs/testing.md)** for details on each test suite and how
+to write new tests.
+
 ## Architecture
 
 ```
@@ -60,9 +70,13 @@ public/            – static frontend (HTML / CSS / JS)
 server/
   index.js         – Express server entry point
   auth.js          – GitHub OAuth + Copilot token exchange
+api/
+  src/functions/   – Azure Functions (auth endpoints)
+  src/utils/       – rate limiting, crypto, session management
 docs/
   copilot-api-spec.md        – Full Copilot API specification
   setup-and-integration.md   – Detailed setup and integration guide
+  testing.md                 – Test suite documentation
 ```
 
 ## Documentation
@@ -73,3 +87,5 @@ docs/
 - **[Setup and Integration Guide](docs/setup-and-integration.md)** — step-by-step
   walkthrough for creating the OAuth app, configuring the environment, and
   understanding the data flow.
+- **[Testing Guide](docs/testing.md)** — how to run tests and what each test
+  suite covers.
