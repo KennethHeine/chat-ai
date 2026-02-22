@@ -111,6 +111,13 @@ module swaAppSettings './modules/swa-appsettings.bicep' = {
   }
 }
 
+// --- Custom Domain ---
+resource customDomain 'Microsoft.Web/staticSites/customDomains@2023-12-01' = {
+  parent: staticWebApp
+  name: 'chat-ai.kscloud.io'
+}
+
 output staticWebAppName string = staticWebApp.name
 output defaultHostname string = staticWebApp.properties.defaultHostname
+output customDomainHostname string = customDomain.name
 output storageAccountName string = storageAccount.name
