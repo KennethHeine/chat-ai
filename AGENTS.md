@@ -71,7 +71,7 @@ No linter or formatter is configured in this repo. No TypeScript.
 - **Never commit secrets.** Use `.env` locally (already in `.gitignore`). See `.env.example` for the required variables.
 - **Secret management**: OAuth secrets live in Azure Key Vault and are injected into SWA app settings via Bicep `getSecret()` at deploy time. Never hardcode them.
 - **No destructive commands** (e.g., `rm -rf`, dropping tables) unless explicitly requested and confirmed.
-- **Session security**: Sessions use opaque 256-bit IDs with server-side data in Azure Table Storage. AES-256-GCM encrypts session cookies. Do not expose token material in cookies.
+- **Session security**: Sessions use opaque 256-bit IDs with server-side data in Azure Table Storage. Session cookies contain only this random ID and are protected with HttpOnly, Secure, and SameSite attributes (and are signed where supported). Do not expose token material in cookies.
 - **CSP and security headers**: Configured in `public/staticwebapp.config.json`. Any new external resource must be added to the CSP.
 - **Rate limiting**: All auth endpoints are rate-limited per-IP via `api/src/utils/rate-limit.js`. Maintain rate limits on new endpoints.
 - **Error responses**: Sanitize errors — log raw details server-side, return generic messages to clients.
