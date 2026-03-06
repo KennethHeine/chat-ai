@@ -51,6 +51,10 @@ cd api && npm test    # API (Azure Functions) tests
 See **[Testing Guide](docs/testing.md)** for details on each test suite and how
 to write new tests.
 
+## Local Development
+
+See **[Local Development Guide](docs/local-development.md)** for a full walkthrough including OAuth App setup, environment variables, and troubleshooting.
+
 ## Architecture
 
 ```
