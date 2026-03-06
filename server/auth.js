@@ -72,6 +72,58 @@ router.get("/me", (req, res) => {
   res.json({ authenticated: true, user: req.session.user });
 });
 
+// --------------- Dev login (non-production only) ---------------
+
+router.post("/dev-login", async (req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(404).json({ error: "Not found" });
+  }
+
+  const pat = req.body?.pat;
+  if (!pat || typeof pat !== "string") {
+    return res.status(400).json({ error: "Missing or invalid PAT" });
+  }
+
+  try {
+    const userRes = await fetch("https://api.github.com/user", {
+      headers: {
+        Authorization: `Bearer ${pat}`,
+        Accept: "application/json",
+      },
+    });
+    if (!userRes.ok) {
+      return res.status(401).json({ error: "Invalid GitHub token" });
+    }
+    const user = await userRes.json();
+    req.session.githubToken = pat;
+    req.session.user = { login: user.login, avatar: user.avatar_url };
+    res.json({ authenticated: true, user: req.session.user });
+  } catch {
+    res.status(502).json({ error: "GitHub API request failed" });
+  }
+});
+
+// --------------- Models ---------------
+
+const COPILOT_MODELS = [
+  { id: "gpt-4o", name: "GPT-4o" },
+  { id: "gpt-4.1", name: "GPT-4.1" },
+  { id: "gpt-4.1-mini", name: "GPT-4.1 Mini" },
+  { id: "gpt-4.1-nano", name: "GPT-4.1 Nano" },
+  { id: "o3-mini", name: "o3-mini" },
+  { id: "o1", name: "o1" },
+  { id: "o1-mini", name: "o1-mini" },
+  { id: "claude-sonnet-4", name: "Claude Sonnet 4" },
+  { id: "gemini-2.0-flash-001", name: "Gemini 2.0 Flash" },
+];
+
+router.get("/models", (req, res) => {
+  if (!req.session.githubToken) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  res.json({ models: COPILOT_MODELS });
+});
+
 // --------------- Copilot token exchange ---------------
 
 function parseBaseUrl(tokenString) {
