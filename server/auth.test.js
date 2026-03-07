@@ -104,3 +104,41 @@ describe("GET /auth/copilot-token", () => {
     expect(body.error).toContain("Not authenticated");
   });
 });
+
+describe("POST /auth/dev-login", () => {
+  test("returns 400 when PAT is missing", async () => {
+    const { status, body } = await request(port, "/auth/dev-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(status).toBe(400);
+    expect(body.error).toMatch(/Missing|invalid/i);
+  });
+
+  test("returns 404 when NODE_ENV is production", async () => {
+    process.env.NODE_ENV = "production";
+    try {
+      const { status } = await request(port, "/auth/dev-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pat: "ghp_test" }),
+      });
+      expect(status).toBe(404);
+    } finally {
+      if (originalEnv.NODE_ENV === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = originalEnv.NODE_ENV;
+      }
+    }
+  });
+});
+
+describe("GET /auth/models", () => {
+  test("returns 401 when not authenticated", async () => {
+    const { status, body } = await request(port, "/auth/models");
+    expect(status).toBe(401);
+    expect(body.error).toContain("Not authenticated");
+  });
+});

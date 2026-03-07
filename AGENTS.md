@@ -43,6 +43,18 @@ cd api && npm test                # API tests
 npm test && (cd api && npm test)  # all tests
 ```
 
+### Integration tests (requires PAT)
+
+Integration tests verify the full auth → chat flow against real GitHub/Copilot APIs.
+They require a GitHub PAT with `read:user` scope set as `TEST_GITHUB_PAT`.
+
+```bash
+npm run test:integration   # skips gracefully if no PAT
+```
+
+The `POST /auth/dev-login` endpoint (dev-only, disabled in production) accepts
+a PAT to create a session without browser-based OAuth, enabling automated testing.
+
 ### Lint / format / typecheck
 
 No linter or formatter is configured in this repo. No TypeScript.
@@ -60,6 +72,7 @@ No linter or formatter is configured in this repo. No TypeScript.
 | `docs/` | Documentation — API spec, setup guide, auth flow, secrets, testing |
 | `.github/workflows/` | CI/CD — `deploy-app.yml`, `deploy-infra.yml`, `deploy-keyvault.yml` |
 | `.env.example` | Template for local environment variables |
+| `tests/` | Integration tests (require `TEST_GITHUB_PAT` secret) |
 
 ### Do not touch
 

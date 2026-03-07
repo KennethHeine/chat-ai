@@ -36,6 +36,30 @@ async function fetchCopilotToken() {
   copilotBaseUrl = data.baseUrl;
 }
 
+async function fetchModels() {
+  try {
+    const res = await fetch("/api/auth/models");
+    if (!res.ok) throw new Error("Failed to fetch models");
+    const data = await res.json();
+    modelSelect.innerHTML = "";
+    for (const model of data.models) {
+      const option = document.createElement("option");
+      option.value = model.id;
+      option.textContent = model.name;
+      modelSelect.appendChild(option);
+    }
+    const preferred = localStorage.getItem("preferred-model");
+    const preferredExists = preferred && Array.from(modelSelect.options).some((o) => o.value === preferred);
+    if (preferredExists) {
+      modelSelect.value = preferred;
+    } else if (modelSelect.options.length > 0) {
+      modelSelect.value = modelSelect.options[0].value;
+    }
+  } catch {
+    // Keep any existing options so the user can still chat
+  }
+}
+
 // --------------- UI helpers ---------------
 
 function showLogin() {
@@ -48,6 +72,7 @@ function showChat(user) {
   chatScreen.classList.remove("hidden");
   userAvatar.src = user.avatar;
   userName.textContent = user.login;
+  fetchModels();
 }
 
 function appendMessage(role, text) {
@@ -57,6 +82,10 @@ function appendMessage(role, text) {
   messagesEl.appendChild(div);
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
+
+modelSelect.addEventListener("change", () => {
+  localStorage.setItem("preferred-model", modelSelect.value);
+});
 
 // --------------- Chat ---------------
 
@@ -122,7 +151,7 @@ logoutBtn.addEventListener("click", async () => {
 // --------------- Exports for testing ---------------
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { showLogin, showChat, appendMessage, handleChatResponse, checkAuth, fetchCopilotToken };
+  module.exports = { showLogin, showChat, appendMessage, handleChatResponse, checkAuth, fetchCopilotToken, fetchModels };
 } else {
   checkAuth();
 }

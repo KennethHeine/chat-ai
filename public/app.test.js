@@ -14,7 +14,7 @@ function setupDOM() {
     <div id="messages"></div>
     <form id="chat-form">
       <input id="chat-input" />
-      <select id="model-select"><option value="gpt-4o">gpt-4o</option></select>
+      <select id="model-select"></select>
     </form>
   `;
 }
@@ -175,5 +175,57 @@ describe("logout button", () => {
     expect(messagesEl.children.length).toBe(0);
     const loginScreen = document.getElementById("login-screen");
     expect(loginScreen.classList.contains("hidden")).toBe(false);
+  });
+});
+
+describe("fetchModels", () => {
+  test("populates the model dropdown from API response", async () => {
+    const models = [
+      { id: "gpt-4o", name: "GPT-4o" },
+      { id: "o3-mini", name: "o3-mini" },
+    ];
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ models }),
+    });
+
+    await appModule.fetchModels();
+
+    const modelSelect = document.getElementById("model-select");
+    expect(modelSelect.options.length).toBe(2);
+    expect(modelSelect.options[0].value).toBe("gpt-4o");
+    expect(modelSelect.options[0].textContent).toBe("GPT-4o");
+    expect(modelSelect.options[1].value).toBe("o3-mini");
+    expect(modelSelect.value).toBe("gpt-4o");
+  });
+
+  test("restores preferred model from localStorage", async () => {
+    const models = [
+      { id: "gpt-4o", name: "GPT-4o" },
+      { id: "o3-mini", name: "o3-mini" },
+    ];
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ models }),
+    });
+    localStorage.setItem("preferred-model", "o3-mini");
+
+    await appModule.fetchModels();
+
+    const modelSelect = document.getElementById("model-select");
+    expect(modelSelect.value).toBe("o3-mini");
+
+    localStorage.removeItem("preferred-model");
+  });
+
+  test("handles fetch error gracefully", async () => {
+    global.fetch = jest.fn().mockRejectedValue(new Error("Network error"));
+
+    // Should not throw
+    await expect(appModule.fetchModels()).resolves.toBeUndefined();
+
+    // Dropdown should still be present (existing options preserved)
+    const modelSelect = document.getElementById("model-select");
+    expect(modelSelect).not.toBeNull();
   });
 });
