@@ -1,0 +1,70 @@
+function Get-CopilotWorkStatus {
+    param(
+        [string]$repo,
+        [int]$prNumber
+    )
+    
+    try {
+        $pr = gh api "repos/$Owner/$repo/pulls/$prNumber" | ConvertFrom-Json
+        
+        # Check if PR is merged or closed
+        if ($pr.merged) {
+            return @{
+                Status = "Success"
+                Merged = $true
+            }
+        }
+        
+        if ($pr.state -eq "closed") {
+            return @{
+                Status = "Failed"
+                Closed = $true
+            }
+        }
+        
+        # Check timeline for Copilot events
+        $timeline = gh api "repos/$Owner/$repo/issues/$prNumber/timeline" | ConvertFrom-Json
+        
+        $latestCopilotEvent = $null
+        foreach ($timelineEvent in $timeline) {
+            if ($timelineEvent.event -in @("copilot_work_started", "copilot_work_finished", "copilot_work_finished_failure")) {
+                $latestCopilotEvent = $timelineEvent
+            }
+        }
+        
+        if ($null -eq $latestCopilotEvent) {
+            return @{
+                Status = "NotStarted"
+                Event = $null
+            }
+        }
+        
+        switch ($latestCopilotEvent.event) {
+            "copilot_work_started" {
+                return @{
+                    Status = "InProgress"
+                    Event = $latestCopilotEvent
+                }
+            }
+            "copilot_work_finished" {
+                return @{
+                    Status = "Success"
+                    Event = $latestCopilotEvent
+                }
+            }
+            "copilot_work_finished_failure" {
+                return @{
+                    Status = "Failed"
+                    Event = $latestCopilotEvent
+                }
+            }
+        }
+    }
+    catch {
+        Write-Warning "Error getting Copilot status for PR #$prNumber : $_"
+        return @{
+            Status = "Unknown"
+            Event = $null
+        }
+    }
+}
