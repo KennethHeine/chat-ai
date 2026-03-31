@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "jest --testPathPatterns \"(server|public)/.*\\.test\\.js$\""
+    "test": "jest --testPathPatterns \"(server|public)/.*\\.test\\.js$\"",
+    "test:integration": "jest tests/integration.test.js"
   },
   "license": "MIT",
   "dependencies": {
